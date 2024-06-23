@@ -50,10 +50,10 @@ class SocialTextEditingController extends TextEditingController {
 
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
-    return _buildCustomTextSpan(text, style);
+    return _buildCustomTextSpan(text, style, withComposing);
   }
 
-  TextSpan _buildCustomTextSpan(String text, TextStyle? style) {
+  TextSpan _buildCustomTextSpan(String text, TextStyle? style, bool withComposing) {
     List<TextSpan> spans = [];
     int lastIndex = 0;
 
@@ -72,6 +72,15 @@ class SocialTextEditingController extends TextEditingController {
 
     if (lastIndex < text.length) {
       spans.add(TextSpan(text: text.substring(lastIndex), style: style));
+    }
+
+    if (withComposing && value.composing.isValid) {
+      spans.add(TextSpan(
+        style: const TextStyle(backgroundColor: Colors.transparent),
+        children: [
+          TextSpan(text: text.substring(value.composing.start, value.composing.end)),
+        ],
+      ));
     }
 
     print(lastIndex);
@@ -94,6 +103,7 @@ class SocialTextEditingController extends TextEditingController {
 
   @override
   set value(TextEditingValue newValue) {
+    if (newValue == value) return; // 値が同じ場合は処理をスキップ
     _processNewValue(newValue);
     super.value = newValue;
   }

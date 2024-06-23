@@ -24,6 +24,8 @@ class SocialTextEditingController extends TextEditingController {
   StreamController<SocialContentDetection> _detectionStream = StreamController<SocialContentDetection>.broadcast();
   SocialContentDetection? lastDetection;
   List<SocialContentDetection> previousDetections = [];
+  List<SocialContentDetection> allDetections = [];
+
 
   final Map<DetectedType, TextStyle> detectionTextStyles = Map();
 
@@ -55,7 +57,9 @@ class SocialTextEditingController extends TextEditingController {
     List<TextSpan> spans = [];
     int lastIndex = 0;
 
-    void addDetectionSpan(SocialContentDetection detection) {
+    allDetections.sort((a, b) => a.range.start.compareTo(b.range.start));
+
+    for (var detection in allDetections) {
       if (detection.range.start > lastIndex) {
         spans.add(TextSpan(text: text.substring(lastIndex, detection.range.start), style: style));
       }
@@ -64,18 +68,6 @@ class SocialTextEditingController extends TextEditingController {
         style: detectionTextStyles[detection.type] ?? style?.copyWith(color: Colors.blue),
       ));
       lastIndex = detection.range.end;
-    }
-
-    // 現在の検出結果を処理
-    if (lastDetection != null) {
-      addDetectionSpan(lastDetection!);
-    }
-
-    // 以前の検出結果も保持し、処理する
-    for (var detection in previousDetections) {
-      if (detection.range.start >= lastIndex) {
-        addDetectionSpan(detection);
-      }
     }
 
     if (lastIndex < text.length) {
@@ -103,39 +95,43 @@ class SocialTextEditingController extends TextEditingController {
   }
 
   void _processNewValue(TextEditingValue newValue) {
-    var currentPosition = newValue.selection.baseOffset;
-    if (currentPosition == -1) {
-      currentPosition = 0;
-    }
-    if (currentPosition > newValue.text.length) {
-      currentPosition = newValue.text.length;
-    }
-    var subString = newValue.text.substring(0, currentPosition);
+    allDetections.clear();
 
-    var lastPart = subString.split(" ").last.split("\n").last;
-    var startIndex = currentPosition - lastPart.length;
-    var detectionContent = newValue.text.substring(startIndex).split(" ").first.split("\n").first;
-
-    var newDetection = SocialContentDetection(
-        getType(detectionContent),
-        TextRange(start: startIndex, end: startIndex + detectionContent.length),
-        detectionContent
-    );
-
-    if (newDetection.text != lastDetection?.text) {
-      if (lastDetection != null && lastDetection!.type != DetectedType.plain_text) {
-        previousDetections.add(lastDetection!);
+    for (var type in _regularExpressions.keys) {
+      var matches = _regularExpressions[type]!.allMatches(newValue.text);
+      for (var match in matches) {
+        var detection = SocialContentDetection(
+            type,
+            TextRange(start: match.start, end: match.end),
+            match.group(0)!
+        );
+        allDetections.add(detection);
       }
-      lastDetection = newDetection;
-      _detectionStream.add(lastDetection!);
     }
 
-    // 古い検出結果を削除
-    previousDetections = previousDetections.where((detection) =>
-    newValue.text.contains(detection.text) &&
-        newValue.text.indexOf(detection.text) == detection.range.start
-    ).toList();
+    // カーソル位置の検出も維持
+    var currentPosition = newValue.selection.baseOffset;
+    if (currentPosition > -1 && currentPosition <= newValue.text.length) {
+      var subString = newValue.text.substring(0, currentPosition);
+      var lastPart = subString.split(" ").last.split("\n").last;
+      var startIndex = currentPosition - lastPart.length;
+      var detectionContent = newValue.text.substring(startIndex).split(" ").first.split("\n").first;
+
+      var cursorDetection = SocialContentDetection(
+          getType(detectionContent),
+          TextRange(start: startIndex, end: startIndex + detectionContent.length),
+          detectionContent
+      );
+
+      if (cursorDetection.text != lastDetection?.text) {
+        lastDetection = cursorDetection;
+        _detectionStream.add(lastDetection!);
+      }
+    }
+
+    notifyListeners();
   }
+
 
   DetectedType getType(String word) {
     return _regularExpressions.keys.firstWhere(

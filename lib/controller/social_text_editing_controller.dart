@@ -20,8 +20,8 @@ import 'package:flutter_social_textfield/flutter_social_textfield.dart';
 ///There is also a helper function that can replaces range with the given value. In order to change cursor context, cursor moves to next word after replacement.
 ///
 class SocialTextEditingController extends TextEditingController{
-
   StreamController<SocialContentDetection> _detectionStream = StreamController<SocialContentDetection>.broadcast();
+  SocialContentDetection? lastDetection; // ここでプロパティとして定義
 
   @override
   void dispose() {
@@ -61,41 +61,51 @@ class SocialTextEditingController extends TextEditingController{
     value = value.copyWith(text: newText, selection: newTextSelection);
   }
 
-  void _processNewValue(TextEditingValue newValue){
+  void _processNewValue(TextEditingValue newValue) {
     var currentPosition = newValue.selection.baseOffset;
-    if(currentPosition == -1){
+    if (currentPosition == -1) {
       currentPosition = 0;
     }
-    if(currentPosition >newValue.text.length){
-      currentPosition = newValue.text.length - 1;
+    if (currentPosition > newValue.text.length) {
+      currentPosition = newValue.text.length;
     }
-    var subString = newValue.text.substring(0,currentPosition);
+    var subString = newValue.text.substring(0, currentPosition);
 
     var lastPart = subString.split(" ").last.split("\n").last;
     var startIndex = currentPosition - lastPart.length;
     var detectionContent = newValue.text.substring(startIndex).split(" ").first.split("\n").first;
-    _detectionStream.add(SocialContentDetection(getType(detectionContent), TextRange(start: startIndex, end: startIndex + detectionContent.length), detectionContent));
+
+    // 検出されたコンテンツが変更された場合のみ通知
+    if (detectionContent != lastDetection) {
+      lastDetection = SocialContentDetection(
+          getType(detectionContent),
+          TextRange(start: startIndex, end: startIndex + detectionContent.length),
+          detectionContent
+      );
+      _detectionStream.add(lastDetection!);
+    }
   }
-  
+
+
   DetectedType getType(String word){
     return _regularExpressions.keys.firstWhere((type) => _regularExpressions[type]!.hasMatch(word),orElse: ()=>DetectedType.plain_text);
   }
 
   @override
   set value(TextEditingValue newValue) {
-
-    if(newValue.selection.baseOffset >= newValue.text.length){
-      print("will add space");
-      newValue = newValue
-          .copyWith(
-          text: newValue.text.trimRight() + " ",
-          selection: newValue.selection.copyWith(baseOffset: newValue.text.length, extentOffset: newValue.text.length));
+    if (newValue.selection.baseOffset >= newValue.text.length) {
+      // カーソルが文字列の最後にある場合の処理を修正
+      print('will add space');
+      newValue = newValue.copyWith(
+          text: newValue.text.trimRight(),
+          selection: TextSelection.collapsed(offset: newValue.text.trimRight().length)
+      );
     }
-    if(newValue.text == " "){
-      newValue = newValue
-          .copyWith(
+    if (newValue.text == " ") {
+      newValue = newValue.copyWith(
           text: "",
-          selection: newValue.selection.copyWith(baseOffset: 0, extentOffset: 0));
+          selection: const TextSelection.collapsed(offset: 0)
+      );
     }
     _processNewValue(newValue);
     super.value = newValue;

@@ -75,15 +75,40 @@ class SocialTextEditingController extends TextEditingController{
     var startIndex = currentPosition - lastPart.length;
     var detectionContent = newValue.text.substring(startIndex).split(" ").first.split("\n").first;
 
-    // 検出されたコンテンツが変更された場合のみ通知
-    if (detectionContent != lastDetection) {
-      lastDetection = SocialContentDetection(
-          getType(detectionContent),
-          TextRange(start: startIndex, end: startIndex + detectionContent.length),
-          detectionContent
-      );
+    var newDetection = SocialContentDetection(
+        getType(detectionContent),
+        TextRange(start: startIndex, end: startIndex + detectionContent.length),
+        detectionContent
+    );
+
+    if (newDetection != lastDetection) {
+      lastDetection = newDetection;
       _detectionStream.add(lastDetection!);
     }
+  }
+
+  TextSpan _buildCustomTextSpan(String text, TextStyle? style) {
+    if (lastDetection == null) {
+      return TextSpan(text: text, style: style);
+    }
+
+    List<TextSpan> spans = [];
+    int lastIndex = 0;
+
+    if (lastDetection!.range.start > 0) {
+      spans.add(TextSpan(text: text.substring(0, lastDetection!.range.start), style: style));
+    }
+
+    spans.add(TextSpan(
+      text: lastDetection?.text,
+      style: style?.copyWith(color: Colors.blue), // メンションやハッシュタグのスタイルをここで設定
+    ));
+
+    if (lastDetection!.range.end < text.length) {
+      spans.add(TextSpan(text: text.substring(lastDetection!.range.end), style: style));
+    }
+
+    return TextSpan(children: spans);
   }
 
 
@@ -93,26 +118,13 @@ class SocialTextEditingController extends TextEditingController{
 
   @override
   set value(TextEditingValue newValue) {
-    if (newValue.selection.baseOffset >= newValue.text.length) {
-      // カーソルが文字列の最後にある場合の処理を修正
-      print('will add space');
-      newValue = newValue.copyWith(
-          text: newValue.text.trimRight(),
-          selection: TextSelection.collapsed(offset: newValue.text.trimRight().length)
-      );
-    }
-    if (newValue.text == " ") {
-      newValue = newValue.copyWith(
-          text: "",
-          selection: const TextSelection.collapsed(offset: 0)
-      );
-    }
     _processNewValue(newValue);
     super.value = newValue;
   }
 
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
-    return SocialTextSpanBuilder(regularExpressions: _regularExpressions,defaultTextStyle: style,detectionTextStyles: detectionTextStyles).build(text);
+    // カスタムのTextSpanビルダーを使用
+    return _buildCustomTextSpan(text, style);
   }
 }

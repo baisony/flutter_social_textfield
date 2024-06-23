@@ -50,16 +50,14 @@ class SocialTextEditingController extends TextEditingController{
     _regularExpressions[type] = regExp;
   }
 
-  void replaceRange(String newValue, TextRange range){
-    // print("newValue: $newValue, range: $range: ${range.textInside(text)}");
+  void replaceRange(String newValue, TextRange range) {
     var newText = text.replaceRange(range.start, range.end, newValue);
     var newRange = TextRange(start: range.start, end: range.start + newValue.length);
-    // print("Updated Range Content: [${newRange.textAfter(newText)}], text length: ${newText.length}, ${newRange.end}");
-    bool isAtTheEndOfText = (newRange.textAfter(newText) == " " && newRange.end == newText.length - 1);
-    if(isAtTheEndOfText){
+    bool isAtTheEndOfText = (newRange.end == newText.length);
+    if (isAtTheEndOfText) {
       newText += " ";
     }
-    TextSelection newTextSelection = TextSelection(baseOffset: newRange.end + 1, extentOffset: newRange.end + 1);
+    TextSelection newTextSelection = TextSelection(baseOffset: newRange.end + (isAtTheEndOfText ? 1 : 0), extentOffset: newRange.end + (isAtTheEndOfText ? 1 : 0));
     value = value.copyWith(text: newText, selection: newTextSelection);
   }
 

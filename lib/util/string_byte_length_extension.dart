@@ -1,10 +1,33 @@
-// string_byte_length_extension.dart
-import 'dart:convert';
-
 extension StringByteLength on String {
-  int get byteLength => utf8.encode(this).length;
+  int byteLength() {
+    return this.runes.fold(0, (prev, elem) {
+      if (elem <= 0x7F) {
+        return prev + 1;
+      } else if (elem <= 0x7FF) {
+        return prev + 2;
+      } else if (elem <= 0xFFFF) {
+        return prev + 3;
+      } else {
+        return prev + 4;
+      }
+    });
+  }
 
-  int byteLengthUntil(int charIndex) {
-    return utf8.encode(this.substring(0, charIndex)).length;
+  int getByteIndexFromCharIndex(int charIndex) {
+    int byteIndex = 0;
+    for (int i = 0; i < charIndex; i++) {
+      byteIndex += this[i].runes.fold(0, (prev, elem) {
+        if (elem <= 0x7F) {
+          return prev + 1;
+        } else if (elem <= 0x7FF) {
+          return prev + 2;
+        } else if (elem <= 0xFFFF) {
+          return prev + 3;
+        } else {
+          return prev + 4;
+        }
+      });
+    }
+    return byteIndex;
   }
 }

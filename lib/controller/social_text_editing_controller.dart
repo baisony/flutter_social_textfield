@@ -28,10 +28,10 @@ class SocialTextEditingController extends TextEditingController {
   final Map<DetectedType, TextStyle> detectionTextStyles = Map();
 
   final Map<DetectedType, RegExp> _regularExpressions = {
-    DetectedType.mention: RegExp(r'@\w+'),
-    DetectedType.hashtag: RegExp(r'#\w+'),
-    DetectedType.url: RegExp(r'https?://\S+'),
-    DetectedType.emoji: RegExp(r'[\u{1F600}-\u{1F64F}]'),
+    DetectedType.mention:atSignRegExp,
+    DetectedType.hashtag:hashTagRegExp,
+    DetectedType.url:urlRegex,
+    DetectedType.emoji:emojiRegex,
   };
 
   StreamSubscription<SocialContentDetection> subscribeToDetection(Function(SocialContentDetection detected) listener) {

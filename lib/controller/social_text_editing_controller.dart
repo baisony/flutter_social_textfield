@@ -51,13 +51,21 @@ class SocialTextEditingController extends TextEditingController{
   }
 
   void replaceRange(String newValue, TextRange range) {
-    var newText = text.replaceRange(range.start, range.end, newValue);
-    var newRange = TextRange(start: range.start, end: range.start + newValue.length);
-    bool isAtTheEndOfText = (newRange.end == newText.length);
+    var oldText = text;
+    var newText = oldText.replaceRange(range.start, range.end, newValue);
+    var newRange = TextRange(start: range.start, end: range.start + newValue.characters.length);
+
+    bool isAtTheEndOfText = (newRange.end == newText.characters.length);
     if (isAtTheEndOfText) {
       newText += " ";
     }
-    TextSelection newTextSelection = TextSelection(baseOffset: newRange.end + (isAtTheEndOfText ? 1 : 0), extentOffset: newRange.end + (isAtTheEndOfText ? 1 : 0));
+
+    int newCursorPosition = newRange.end + (isAtTheEndOfText ? 1 : 0);
+    TextSelection newTextSelection = TextSelection(
+        baseOffset: newCursorPosition,
+        extentOffset: newCursorPosition
+    );
+
     value = value.copyWith(text: newText, selection: newTextSelection);
   }
 

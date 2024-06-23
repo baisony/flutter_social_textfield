@@ -69,28 +69,20 @@ class SocialTextEditingController extends TextEditingController{
     value = value.copyWith(text: newText, selection: newTextSelection);
   }
 
-  void _processNewValue(TextEditingValue newValue) {
+  void _processNewValue(TextEditingValue newValue){
     var currentPosition = newValue.selection.baseOffset;
-    if (currentPosition == -1) {
+    if(currentPosition == -1){
       currentPosition = 0;
     }
-    if (currentPosition > newValue.text.length) {
-      currentPosition = newValue.text.length;
+    if(currentPosition >newValue.text.length){
+      currentPosition = newValue.text.length - 1;
     }
-    var subString = newValue.text.substring(0, currentPosition);
+    var subString = newValue.text.substring(0,currentPosition);
 
     var lastPart = subString.split(" ").last.split("\n").last;
     var startIndex = currentPosition - lastPart.length;
     var detectionContent = newValue.text.substring(startIndex).split(" ").first.split("\n").first;
-
-    // 検出されたコンテンツが変更された場合のみ通知
-    if (detectionContent != lastDetection?.content) {
-      _detectionStream.add(SocialContentDetection(
-          getType(detectionContent),
-          TextRange(start: startIndex, end: startIndex + detectionContent.length),
-          detectionContent
-      ));
-    }
+    _detectionStream.add(SocialContentDetection(getType(detectionContent), TextRange(start: startIndex, end: startIndex + detectionContent.length), detectionContent));
   }
   
   DetectedType getType(String word){
@@ -99,10 +91,21 @@ class SocialTextEditingController extends TextEditingController{
 
   @override
   set value(TextEditingValue newValue) {
-    if (newValue.text != text) {
-      // テキストが変更された場合のみ処理を行う
-      _processNewValue(newValue);
+
+    if(newValue.selection.baseOffset >= newValue.text.length){
+      print("will add space");
+      newValue = newValue
+          .copyWith(
+          text: newValue.text.trimRight() + " ",
+          selection: newValue.selection.copyWith(baseOffset: newValue.text.length, extentOffset: newValue.text.length));
     }
+    if(newValue.text == " "){
+      newValue = newValue
+          .copyWith(
+          text: "",
+          selection: newValue.selection.copyWith(baseOffset: 0, extentOffset: 0));
+    }
+    _processNewValue(newValue);
     super.value = newValue;
   }
 

@@ -74,10 +74,6 @@ class SocialTextEditingController extends TextEditingController {
       spans.add(TextSpan(text: text.substring(lastIndex), style: style));
     }
 
-    print(lastIndex);
-    print(spans);
-    print(text);
-
     return TextSpan(children: spans);
   }
 

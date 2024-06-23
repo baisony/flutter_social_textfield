@@ -58,6 +58,7 @@ class SocialTextSpanBuilder{
   ///[ignoreCases] optional, when set, string values written in ignoreCases will be treated as Plain Text
   ///[includeOnlyCases] optional, when set, only values found in this array will be detected, other values be treated as Plain Text
   TextSpan build(String text, {List<String>? ignoreCases, List<String>? includeOnlyCases}) {
+    print(text);
     regularExpressions.keys.forEach((type) {
       allMatches[type] = regularExpressions[type]!.allMatches(text).toList();
     });

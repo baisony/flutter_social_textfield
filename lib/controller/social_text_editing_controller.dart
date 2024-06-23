@@ -19,35 +19,70 @@ import 'package:flutter_social_textfield/flutter_social_textfield.dart';
 ///
 ///There is also a helper function that can replaces range with the given value. In order to change cursor context, cursor moves to next word after replacement.
 ///
-class SocialTextEditingController extends TextEditingController{
-  StreamController<SocialContentDetection> _detectionStream = StreamController<SocialContentDetection>.broadcast();
-  SocialContentDetection? lastDetection; // ここでプロパティとして定義
 
-  @override
-  void dispose() {
-    _detectionStream.close();
-    super.dispose();
-  }
+class SocialTextEditingController extends TextEditingController {
+  StreamController<SocialContentDetection> _detectionStream = StreamController<SocialContentDetection>.broadcast();
+  SocialContentDetection? lastDetection;
+  List<SocialContentDetection> previousDetections = [];
 
   final Map<DetectedType, TextStyle> detectionTextStyles = Map();
 
   final Map<DetectedType, RegExp> _regularExpressions = {
-    DetectedType.mention:atSignRegExp,
-    DetectedType.hashtag:hashTagRegExp,
-    DetectedType.url:urlRegex,
-    DetectedType.emoji:emojiRegex,
+    DetectedType.mention: RegExp(r'@\w+'),
+    DetectedType.hashtag: RegExp(r'#\w+'),
+    DetectedType.url: RegExp(r'https?://\S+'),
+    DetectedType.emoji: RegExp(r'[\u{1F600}-\u{1F64F}]'),
   };
 
-  StreamSubscription<SocialContentDetection> subscribeToDetection(Function(SocialContentDetection detected) listener){
+  StreamSubscription<SocialContentDetection> subscribeToDetection(Function(SocialContentDetection detected) listener) {
     return _detectionStream.stream.listen(listener);
   }
 
-  void setTextStyle(DetectedType type, TextStyle style){
+  void setTextStyle(DetectedType type, TextStyle style) {
     detectionTextStyles[type] = style;
   }
 
-  void setRegexp(DetectedType type, RegExp regExp){
+  void setRegexp(DetectedType type, RegExp regExp) {
     _regularExpressions[type] = regExp;
+  }
+
+  @override
+  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+    return _buildCustomTextSpan(text, style);
+  }
+
+  TextSpan _buildCustomTextSpan(String text, TextStyle? style) {
+    List<TextSpan> spans = [];
+    int lastIndex = 0;
+
+    void addDetectionSpan(SocialContentDetection detection) {
+      if (detection.range.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, detection.range.start), style: style));
+      }
+      spans.add(TextSpan(
+        text: detection.text,
+        style: detectionTextStyles[detection.type] ?? style?.copyWith(color: Colors.blue),
+      ));
+      lastIndex = detection.range.end;
+    }
+
+    // 現在の検出結果を処理
+    if (lastDetection != null) {
+      addDetectionSpan(lastDetection!);
+    }
+
+    // 以前の検出結果も保持し、処理する
+    for (var detection in previousDetections) {
+      if (detection.range.start >= lastIndex) {
+        addDetectionSpan(detection);
+      }
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(lastIndex), style: style));
+    }
+
+    return TextSpan(children: spans);
   }
 
   void replaceRange(String newValue, TextRange range) {
@@ -59,6 +94,12 @@ class SocialTextEditingController extends TextEditingController{
     }
     TextSelection newTextSelection = TextSelection(baseOffset: newRange.end + (isAtTheEndOfText ? 1 : 0), extentOffset: newRange.end + (isAtTheEndOfText ? 1 : 0));
     value = value.copyWith(text: newText, selection: newTextSelection);
+  }
+
+  @override
+  set value(TextEditingValue newValue) {
+    _processNewValue(newValue);
+    super.value = newValue;
   }
 
   void _processNewValue(TextEditingValue newValue) {
@@ -81,50 +122,31 @@ class SocialTextEditingController extends TextEditingController{
         detectionContent
     );
 
-    if (newDetection != lastDetection) {
+    if (newDetection.text != lastDetection?.text) {
+      if (lastDetection != null && lastDetection!.type != DetectedType.plain_text) {
+        previousDetections.add(lastDetection!);
+      }
       lastDetection = newDetection;
       _detectionStream.add(lastDetection!);
     }
+
+    // 古い検出結果を削除
+    previousDetections = previousDetections.where((detection) =>
+    newValue.text.contains(detection.text) &&
+        newValue.text.indexOf(detection.text) == detection.range.start
+    ).toList();
   }
 
-  TextSpan _buildCustomTextSpan(String text, TextStyle? style) {
-    if (lastDetection == null) {
-      return TextSpan(text: text, style: style);
-    }
-
-    List<TextSpan> spans = [];
-    int lastIndex = 0;
-
-    if (lastDetection!.range.start > 0) {
-      spans.add(TextSpan(text: text.substring(0, lastDetection!.range.start), style: style));
-    }
-
-    spans.add(TextSpan(
-      text: lastDetection?.text,
-      style: style?.copyWith(color: Colors.blue), // メンションやハッシュタグのスタイルをここで設定
-    ));
-
-    if (lastDetection!.range.end < text.length) {
-      spans.add(TextSpan(text: text.substring(lastDetection!.range.end), style: style));
-    }
-
-    return TextSpan(children: spans);
-  }
-
-
-  DetectedType getType(String word){
-    return _regularExpressions.keys.firstWhere((type) => _regularExpressions[type]!.hasMatch(word),orElse: ()=>DetectedType.plain_text);
+  DetectedType getType(String word) {
+    return _regularExpressions.keys.firstWhere(
+            (type) => _regularExpressions[type]!.hasMatch(word),
+        orElse: () => DetectedType.plain_text
+    );
   }
 
   @override
-  set value(TextEditingValue newValue) {
-    _processNewValue(newValue);
-    super.value = newValue;
-  }
-
-  @override
-  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
-    // カスタムのTextSpanビルダーを使用
-    return _buildCustomTextSpan(text, style);
+  void dispose() {
+    _detectionStream.close();
+    super.dispose();
   }
 }

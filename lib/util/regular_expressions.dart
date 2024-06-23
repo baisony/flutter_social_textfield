@@ -1,6 +1,6 @@
 ///Regular Expression values taken from https://github.com/santa112358/detectable_text_field
 
-const _symbols = '·・ー_';
+const _symbols = '·・ー._';
 
 const _numbers = '0-9０-９';
 

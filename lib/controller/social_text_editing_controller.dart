@@ -61,7 +61,7 @@ class SocialTextEditingController extends TextEditingController {
     var subString = newValue.text.substring(0, currentPosition);
 
     var lastPart = subString.split(" ").last.split("\n").last;
-    var startIndex = subString.byteLengthUntil(subString.length - lastPart.length);
+    var startIndex = subString.length - lastPart.length; // 修正
     var detectionContent = newValue.text.substring(startIndex).split(" ").first.split("\n").first;
     _detectionStream.add(SocialContentDetection(getType(detectionContent),
         TextRange(start: startIndex, end: startIndex + detectionContent.length),

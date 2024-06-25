@@ -74,6 +74,7 @@ class SocialTextSpanBuilder{
     int cursorPosition = 0;
     for(int i = 0;i<orderedMatches.length;i++){
       var match = orderedMatches[i];
+      print("Match: ${text.substring(match.start,match.end)}");
       print("Match: ${match.input.substring(match.start,match.end)}");
       var subString = text.substring(match.start, match.end);
 

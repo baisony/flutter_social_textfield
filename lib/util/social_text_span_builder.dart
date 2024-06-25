@@ -67,6 +67,7 @@ class SocialTextSpanBuilder{
     }
     var orderedMatches = allMatches.values.expand((element) => element!.toList()).toList()
       ..sort((m1, m2) => m1.start.compareTo(m2.start));
+    print(orderedMatches);
     if (orderedMatches.isEmpty) {
       return TextSpan(text: text, style: defaultTextStyle);
     }

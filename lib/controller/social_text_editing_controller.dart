@@ -61,7 +61,7 @@ class SocialTextEditingController extends TextEditingController {
       }
       spans.add(TextSpan(
         text: detection.text,
-        style: detectionTextStyles[detection.type] ?? style?.copyWith(color: Colors.blue),
+        style: detectionTextStyles[detection.type] ?? style?.copyWith(color: Colors.white),
       ));
       lastIndex = detection.range.end;
     }

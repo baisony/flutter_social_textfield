@@ -51,7 +51,7 @@ class _DefaultSocialTextFieldControllerState
 
   Map<DetectedType, double> heightMap = Map();
 
-  var animationDuration = const Duration(milliseconds: 200);
+  var animationDuration = const Duration(milliseconds: 2000000);
 
   @override
   void dispose() {

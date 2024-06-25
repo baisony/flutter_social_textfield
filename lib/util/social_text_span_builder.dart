@@ -106,6 +106,7 @@ class SocialTextSpanBuilder{
         style: defaultTextStyle,
       ));
     }
+    print(spans);
     return TextSpan(children: spans);
   }
 

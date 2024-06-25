@@ -106,7 +106,7 @@ class SocialTextSpanBuilder{
         style: defaultTextStyle,
       ));
     }
-    print(spans);
+    print("spans: ${spans}");
     return TextSpan(children: spans);
   }
 

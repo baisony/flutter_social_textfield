@@ -1,10 +1,25 @@
 import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_social_textfield/flutter_social_textfield.dart';
 
+///An improved [TextEditingController] for using with any widget that accepts [TextEditingController].
+///It uses [SocialTextSpanBuilder] for rendering the content.
+///[_detectionStream] returns content of the current cursor position. Positions are calculated by the cyrrent location of the word
+///Configuration is made by calling setter functions.
+///example:
+///     _textEditingController = SocialTextEditingController()
+///       ..setTextStyle(DetectedType.mention, TextStyle(color: Colors.purple,backgroundColor: Colors.purple.withAlpha(50)))
+///      ..setTextStyle(DetectedType.url, TextStyle(color: Colors.blue, decoration: TextDecoration.underline))
+///      ..setTextStyle(DetectedType.hashtag, TextStyle(color: Colors.blue, fontWeight: FontWeight.w600))
+///      ..setRegexp(DetectedType.mention, Regexp("your_custom_regex_pattern");
+///
+///There is also a helper function that can replaces range with the given value. In order to change cursor context, cursor moves to next word after replacement.
+///
 class SocialTextEditingController extends TextEditingController {
-  StreamController<SocialContentDetection> _detectionStream = StreamController<SocialContentDetection>.broadcast();
+  StreamController<SocialContentDetection> _detectionStream =
+      StreamController<SocialContentDetection>.broadcast();
 
   @override
   void dispose() {
@@ -21,9 +36,8 @@ class SocialTextEditingController extends TextEditingController {
     DetectedType.emoji: emojiRegex,
   };
 
-  List<SocialContentDetection> allDetections = [];
-
-  StreamSubscription<SocialContentDetection> subscribeToDetection(Function(SocialContentDetection detected) listener) {
+  StreamSubscription<SocialContentDetection> subscribeToDetection(
+      Function(SocialContentDetection detected) listener) {
     return _detectionStream.stream.listen(listener);
   }
 
@@ -36,71 +50,81 @@ class SocialTextEditingController extends TextEditingController {
   }
 
   void replaceRange(String newValue, TextRange range) {
+    // print("newValue: $newValue, range: $range: ${range.textInside(text)}");
     var newText = text.replaceRange(range.start, range.end, newValue);
-    var newRange = TextRange(start: range.start, end: range.start + newValue.length);
-    bool isAtTheEndOfText = (newRange.end == newText.length);
+    var newRange =
+        TextRange(start: range.start, end: range.start + newValue.length);
+    // print("Updated Range Content: [${newRange.textAfter(newText)}], text length: ${newText.length}, ${newRange.end}");
+    bool isAtTheEndOfText = (newRange.textAfter(newText) == " " &&
+        newRange.end == newText.length - 1);
     if (isAtTheEndOfText) {
       newText += " ";
     }
     TextSelection newTextSelection = TextSelection(
-        baseOffset: newRange.end + (isAtTheEndOfText ? 1 : 0),
-        extentOffset: newRange.end + (isAtTheEndOfText ? 1 : 0)
-    );
+        baseOffset: newRange.end + 1, extentOffset: newRange.end + 1);
     value = value.copyWith(text: newText, selection: newTextSelection);
   }
 
   void _processNewValue(TextEditingValue newValue) {
-    allDetections.clear(); // 既存の検出結果をクリア
-    var text = newValue.text;
-
-    for (var type in _regularExpressions.keys) {
-      var matches = _regularExpressions[type]!.allMatches(text);
-      for (var match in matches) {
-        var detection = SocialContentDetection(
-            type,
-            TextRange(start: match.start, end: match.end),
-            match.group(0)!
-        );
-        allDetections.add(detection);
-      }
+    var currentPosition = newValue.selection.baseOffset;
+    if (currentPosition == -1) {
+      currentPosition = 0;
     }
-    _detectionStream.addStream(Stream.fromIterable(allDetections)); // すべての検出結果をストリームに追加
+    if (currentPosition > newValue.text.length) {
+      currentPosition = newValue.text.length;
+    }
+    var subString = newValue.text.substring(0, currentPosition);
+
+    var lastPart = subString.split(RegExp(r'[\s\n]')).last;
+    var startIndex = subString.length - lastPart.length;
+    var detectionContent =
+        newValue.text.substring(startIndex).split(RegExp(r'[\s\n]')).first;
+
+    // 範囲チェックを追加
+    var endIndex = startIndex + detectionContent.length;
+    if (endIndex > newValue.text.length) {
+      endIndex = newValue.text.length;
+    }
+
+    _detectionStream.add(SocialContentDetection(getType(detectionContent),
+        TextRange(start: startIndex, end: endIndex), detectionContent));
   }
 
   DetectedType getType(String word) {
     return _regularExpressions.keys.firstWhere(
-            (type) => _regularExpressions[type]!.hasMatch(word),
-        orElse: () => DetectedType.plain_text
-    );
+        (type) => _regularExpressions[type]!.hasMatch(word),
+        orElse: () => DetectedType.plain_text);
   }
 
   @override
   set value(TextEditingValue newValue) {
     if (newValue.selection.baseOffset >= newValue.text.length) {
+      print("will add space");
       newValue = newValue.copyWith(
           text: newValue.text.trimRight() + " ",
           selection: newValue.selection.copyWith(
               baseOffset: newValue.text.length,
-              extentOffset: newValue.text.length
-          )
-      );
+              extentOffset: newValue.text.length));
     }
     if (newValue.text == " ") {
       newValue = newValue.copyWith(
           text: "",
-          selection: newValue.selection.copyWith(baseOffset: 0, extentOffset: 0)
-      );
+          selection:
+              newValue.selection.copyWith(baseOffset: 0, extentOffset: 0));
     }
     _processNewValue(newValue);
     super.value = newValue;
   }
 
   @override
-  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+  TextSpan buildTextSpan(
+      {required BuildContext context,
+      TextStyle? style,
+      required bool withComposing}) {
     return SocialTextSpanBuilder(
-        regularExpressions: _regularExpressions,
-        defaultTextStyle: style,
-        detectionTextStyles: detectionTextStyles
-    ).build(text);
+            regularExpressions: _regularExpressions,
+            defaultTextStyle: style,
+            detectionTextStyles: detectionTextStyles)
+        .build(text);
   }
 }

@@ -19,11 +19,15 @@ import 'package:flutter_social_textfield/flutter_social_textfield.dart';
 ///
 ///There is also a helper function that can replaces range with the given value. In order to change cursor context, cursor moves to next word after replacement.
 ///
+class SocialTextEditingController extends TextEditingController{
 
-class SocialTextEditingController extends TextEditingController {
   StreamController<SocialContentDetection> _detectionStream = StreamController<SocialContentDetection>.broadcast();
-  SocialContentDetection? lastDetection;
-  List<SocialContentDetection> previousDetections = [];
+
+  @override
+  void dispose() {
+    _detectionStream.close();
+    super.dispose();
+  }
 
   final Map<DetectedType, TextStyle> detectionTextStyles = Map();
 
@@ -34,121 +38,73 @@ class SocialTextEditingController extends TextEditingController {
     DetectedType.emoji:emojiRegex,
   };
 
-  StreamSubscription<SocialContentDetection> subscribeToDetection(Function(SocialContentDetection detected) listener) {
+  StreamSubscription<SocialContentDetection> subscribeToDetection(Function(SocialContentDetection detected) listener){
     return _detectionStream.stream.listen(listener);
   }
 
-  void setTextStyle(DetectedType type, TextStyle style) {
+  void setTextStyle(DetectedType type, TextStyle style){
     detectionTextStyles[type] = style;
   }
 
-  void setRegexp(DetectedType type, RegExp regExp) {
+  void setRegexp(DetectedType type, RegExp regExp){
     _regularExpressions[type] = regExp;
   }
 
-  @override
-  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
-    return _buildCustomTextSpan(text, style);
-  }
-
-  TextSpan _buildCustomTextSpan(String text, TextStyle? style) {
-    List<TextSpan> spans = [];
-    int lastIndex = 0;
-
-    void addDetectionSpan(SocialContentDetection detection) {
-      if (detection.range.start > lastIndex) {
-        spans.add(TextSpan(text: text.substring(lastIndex, detection.range.start), style: style));
-      }
-      spans.add(TextSpan(
-        text: detection.text,
-        style: detectionTextStyles[detection.type] ?? style?.copyWith(color: Colors.blue),
-      ));
-      lastIndex = detection.range.end;
-    }
-
-    // 現在の検出結果を処理
-    if (lastDetection != null) {
-      addDetectionSpan(lastDetection!);
-    }
-
-    // 以前の検出結果も保持し、処理する
-    for (var detection in previousDetections) {
-      if (detection.range.start >= lastIndex) {
-        addDetectionSpan(detection);
-      }
-    }
-
-    if (lastIndex < text.length) {
-      spans.add(TextSpan(text: text.substring(lastIndex), style: style));
-    }
-
-    print(spans);
-
-    return TextSpan(children: spans);
-  }
-
-  void replaceRange(String newValue, TextRange range) {
+  void replaceRange(String newValue, TextRange range){
+    // print("newValue: $newValue, range: $range: ${range.textInside(text)}");
     var newText = text.replaceRange(range.start, range.end, newValue);
     var newRange = TextRange(start: range.start, end: range.start + newValue.length);
-    bool isAtTheEndOfText = (newRange.end == newText.length);
-    if (isAtTheEndOfText) {
+    // print("Updated Range Content: [${newRange.textAfter(newText)}], text length: ${newText.length}, ${newRange.end}");
+    bool isAtTheEndOfText = (newRange.textAfter(newText) == " " && newRange.end == newText.length - 1);
+    if(isAtTheEndOfText){
       newText += " ";
     }
-    TextSelection newTextSelection = TextSelection(baseOffset: newRange.end + (isAtTheEndOfText ? 1 : 0), extentOffset: newRange.end + (isAtTheEndOfText ? 1 : 0));
+    TextSelection newTextSelection = TextSelection(baseOffset: newRange.end + 1, extentOffset: newRange.end + 1);
     value = value.copyWith(text: newText, selection: newTextSelection);
   }
 
-  @override
-  set value(TextEditingValue newValue) {
-    _processNewValue(newValue);
-    super.value = newValue;
-  }
-
-  void _processNewValue(TextEditingValue newValue) {
+  void _processNewValue(TextEditingValue newValue){
     var currentPosition = newValue.selection.baseOffset;
-    if (currentPosition == -1) {
+    if(currentPosition == -1){
       currentPosition = 0;
     }
-    if (currentPosition > newValue.text.length) {
-      currentPosition = newValue.text.length;
+    if(currentPosition >newValue.text.length){
+      currentPosition = newValue.text.length - 1;
     }
-    var subString = newValue.text.substring(0, currentPosition);
+    var subString = newValue.text.substring(0,currentPosition);
 
     var lastPart = subString.split(" ").last.split("\n").last;
     var startIndex = currentPosition - lastPart.length;
     var detectionContent = newValue.text.substring(startIndex).split(" ").first.split("\n").first;
-
-    var newDetection = SocialContentDetection(
-        getType(detectionContent),
-        TextRange(start: startIndex, end: startIndex + detectionContent.length),
-        detectionContent
-    );
-
-    if (newDetection.text != lastDetection?.text) {
-      if (lastDetection != null && lastDetection!.type != DetectedType.plain_text) {
-        previousDetections.add(lastDetection!);
-      }
-      lastDetection = newDetection;
-      _detectionStream.add(lastDetection!);
-    }
-
-    // 古い検出結果を削除
-    previousDetections = previousDetections.where((detection) =>
-    newValue.text.contains(detection.text) &&
-        newValue.text.indexOf(detection.text) == detection.range.start
-    ).toList();
+    _detectionStream.add(SocialContentDetection(getType(detectionContent), TextRange(start: startIndex, end: startIndex + detectionContent.length), detectionContent));
   }
 
-  DetectedType getType(String word) {
-    return _regularExpressions.keys.firstWhere(
-            (type) => _regularExpressions[type]!.hasMatch(word),
-        orElse: () => DetectedType.plain_text
-    );
+  DetectedType getType(String word){
+    return _regularExpressions.keys.firstWhere((type) => _regularExpressions[type]!.hasMatch(word),orElse: ()=>DetectedType.plain_text);
   }
 
   @override
-  void dispose() {
-    _detectionStream.close();
-    super.dispose();
+  set value(TextEditingValue newValue) {
+
+    if(newValue.selection.baseOffset >= newValue.text.length){
+      print("will add space");
+      newValue = newValue
+          .copyWith(
+          text: newValue.text.trimRight() + " ",
+          selection: newValue.selection.copyWith(baseOffset: newValue.text.length, extentOffset: newValue.text.length));
+    }
+    if(newValue.text == " "){
+      newValue = newValue
+          .copyWith(
+          text: "",
+          selection: newValue.selection.copyWith(baseOffset: 0, extentOffset: 0));
+    }
+    _processNewValue(newValue);
+    super.value = newValue;
+  }
+
+  @override
+  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+    return SocialTextSpanBuilder(regularExpressions: _regularExpressions,defaultTextStyle: style,detectionTextStyles: detectionTextStyles).build(text);
   }
 }

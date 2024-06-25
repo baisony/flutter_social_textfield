@@ -70,35 +70,44 @@ class SocialTextSpanBuilder{
     if (orderedMatches.isEmpty) {
       return TextSpan(text: text, style: defaultTextStyle);
     }
-    TextSpan root = TextSpan();
+    List<TextSpan> spans = [];
     int cursorPosition = 0;
-    for(int i = 0;i<orderedMatches.length;i++){
+    for (int i = 0; i < orderedMatches.length; i++) {
       var match = orderedMatches[i];
-      var subString = text.substring(match.start, match.end);
-
-      bool willAddSpaceAtStart = subString.startsWith(" "); //Strangely, mention and hashtags start with an empty space, while web detections are correct
-      var firstSearch = getTextStyleForRange(cursorPosition, match.start,ignoreCases: ignoreCases,includeOnlyCases: includeOnlyCases);
-      root = getTextSpan(root, text.substring(cursorPosition,match.start + (willAddSpaceAtStart ? 1 : 0)), firstSearch.textStyle);
-
-      var secondSearch = getTextStyleForRange(match.start, match.end,ignoreCases: ignoreCases,includeOnlyCases: includeOnlyCases);
-      TapGestureRecognizer? tapRecognizer2;
-      if(onTapDetection != null){
-        tapRecognizer2 = TapGestureRecognizer()..onTap = (){
-          onTapDetection!(SocialContentDetection(
-              secondSearch.type,
-              TextRange(start:match.start,end: match.end),
-              secondSearch.text
-          ));
-        };
+      if (cursorPosition < match.start) {
+        spans.add(TextSpan(
+          text: text.substring(cursorPosition, match.start),
+          style: defaultTextStyle,
+        ));
       }
-      root = getTextSpan(root, text.substring(match.start+(willAddSpaceAtStart ? 1 : 0), match.end), secondSearch.textStyle,tapRecognizer: tapRecognizer2);
+      var matchedText = text.substring(match.start, match.end);
+      var search = getTextStyleForRange(match.start, match.end, ignoreCases: ignoreCases, includeOnlyCases: includeOnlyCases);
+      TapGestureRecognizer? tapRecognizer;
+      if (onTapDetection != null) {
+        tapRecognizer = TapGestureRecognizer()
+          ..onTap = () {
+            onTapDetection!(SocialContentDetection(
+              search.type,
+              TextRange(start: match.start, end: match.end),
+              matchedText,
+            ));
+          };
+      }
+      spans.add(TextSpan(
+        text: matchedText,
+        style: search.textStyle,
+        recognizer: tapRecognizer,
+      ));
       cursorPosition = match.end;
     }
-    if(cursorPosition < text.length-1){
-      root = getTextSpan(root, text.substring(cursorPosition), getTextStyleForRange(cursorPosition, text.length).textStyle);
+    if (cursorPosition < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(cursorPosition),
+        style: defaultTextStyle,
+      ));
     }
-    print(root.toPlainText());
-    return root;
+    print(spans);
+    return TextSpan(children: spans);
   }
 
   ///Wraps text with style inside the root.

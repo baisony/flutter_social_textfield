@@ -57,55 +57,47 @@ class SocialTextSpanBuilder{
   ///[text] Text Content
   ///[ignoreCases] optional, when set, string values written in ignoreCases will be treated as Plain Text
   ///[includeOnlyCases] optional, when set, only values found in this array will be detected, other values be treated as Plain Text
-  TextSpan build(String text, {List<String>? ignoreCases, List<String>? includeOnlyCases}) {
-    regularExpressions.keys.forEach((type) {
+  TextSpan build(String text, {List<String>? ignoreCases,List<String>? includeOnlyCases}){
+
+        regularExpressions.keys.forEach((type) {
       allMatches[type] = regularExpressions[type]!.allMatches(text).toList();
     });
-    if (allMatches.isEmpty) {
-      return TextSpan(text: text, style: defaultTextStyle);
+    if(allMatches.isEmpty){
+      return TextSpan(text: text,style: defaultTextStyle);
     }
     var orderedMatches = allMatches.values.expand((element) => element!.toList()).toList()
-      ..sort((m1, m2) => m1.start.compareTo(m2.start));
-    if (orderedMatches.isEmpty) {
-      return TextSpan(text: text, style: defaultTextStyle);
+      ..sort((m1,m2)=>m1.start.compareTo(m2.start));
+    if(orderedMatches.isEmpty){
+      return TextSpan(text: text,style: defaultTextStyle);
     }
-    List<TextSpan> spans = [];
+    TextSpan root = TextSpan();
     int cursorPosition = 0;
-    for (int i = 0; i < orderedMatches.length; i++) {
+    for(int i = 0;i<orderedMatches.length;i++){
       var match = orderedMatches[i];
-      if (cursorPosition < match.start) {
-        spans.add(TextSpan(
-          text: text.substring(cursorPosition, match.start),
-          style: defaultTextStyle,
-        ));
+      var subString = text.substring(match.start, match.end);
+
+      bool willAddSpaceAtStart = subString.startsWith(" "); //Strangely, mention and hashtags start with an empty space, while web detections are correct
+      var firstSearch = getTextStyleForRange(cursorPosition, match.start,ignoreCases: ignoreCases,includeOnlyCases: includeOnlyCases);
+      root = getTextSpan(root, text.substring(cursorPosition,match.start + (willAddSpaceAtStart ? 1 : 0)), firstSearch.textStyle);
+
+      var secondSearch = getTextStyleForRange(match.start, match.end,ignoreCases: ignoreCases,includeOnlyCases: includeOnlyCases);
+      TapGestureRecognizer? tapRecognizer2;
+      if(onTapDetection != null){
+        tapRecognizer2 = TapGestureRecognizer()..onTap = (){
+          onTapDetection!(SocialContentDetection(
+            secondSearch.type,
+            TextRange(start:match.start,end: match.end),
+            secondSearch.text
+          ));
+        };
       }
-      var matchedText = text.substring(match.start, match.end);
-      var search = getTextStyleForRange(match.start, match.end, ignoreCases: ignoreCases, includeOnlyCases: includeOnlyCases);
-      TapGestureRecognizer? tapRecognizer;
-      if (onTapDetection != null) {
-        tapRecognizer = TapGestureRecognizer()
-          ..onTap = () {
-            onTapDetection!(SocialContentDetection(
-              search.type,
-              TextRange(start: match.start, end: match.end),
-              matchedText,
-            ));
-          };
-      }
-      spans.add(TextSpan(
-        text: matchedText,
-        style: search.textStyle,
-        recognizer: tapRecognizer,
-      ));
+      root = getTextSpan(root, text.substring(match.start+(willAddSpaceAtStart ? 1 : 0), match.end), secondSearch.textStyle,tapRecognizer: tapRecognizer2);
       cursorPosition = match.end;
     }
-    if (cursorPosition < text.length) {
-      spans.add(TextSpan(
-        text: text.substring(cursorPosition),
-        style: defaultTextStyle,
-      ));
+    if(cursorPosition < text.length-1){
+      root = getTextSpan(root, text.substring(cursorPosition), getTextStyleForRange(cursorPosition, text.length).textStyle);
     }
-    return TextSpan(children: spans);
+    return root;
   }
 
   ///Wraps text with style inside the root.
